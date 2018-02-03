@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"reflect"
+	"strings"
 
 	"github.com/olekukonko/tablewriter"
 
@@ -12,6 +14,33 @@ import (
 	"github.com/kniren/gota/dataframe"
 	"github.com/urfave/cli"
 )
+
+func star(df dataframe.DataFrame) {
+	headers := df.Names()
+
+	tablewr := tablewriter.NewWriter(os.Stdout)
+	tablewr.SetHeader(headers)
+	for i, v := range df.Records() {
+		if i != 0 {
+			tablewr.Append(v)
+		}
+	}
+	tablewr.Render()
+}
+
+func subTable(df dataframe.DataFrame, colNames []string) {
+	df = df.Select(colNames)
+	headers := df.Names()
+
+	tablewr := tablewriter.NewWriter(os.Stdout)
+	tablewr.SetHeader(headers)
+	for i, v := range df.Records() {
+		if i != 0 {
+			tablewr.Append(v)
+		}
+	}
+	tablewr.Render()
+}
 
 func handleSelect(df dataframe.DataFrame, stmt *sqlparser.Select) error {
 	// fmt.Println("SELECT Statement")
@@ -29,6 +58,9 @@ func handleSelect(df dataframe.DataFrame, stmt *sqlparser.Select) error {
 	// fmt.Println("Limit :- ", stmt.Limit)
 	// fmt.Println("Lock :- ", stmt.Lock)
 
+	var colExprs []sqlparser.Expr
+	var colNames []string
+
 	if len(stmt.From) != 1 {
 		fmt.Println("ERROR :- Multiple from is not supported")
 	}
@@ -39,16 +71,25 @@ func handleSelect(df dataframe.DataFrame, stmt *sqlparser.Select) error {
 		return nil
 	}
 
-	headers := df.Names()
-
-	tablewr := tablewriter.NewWriter(os.Stdout)
-	tablewr.SetHeader(headers)
-	for i, v := range df.Records() {
-		if i != 0 {
-			tablewr.Append(v)
+	for _, v := range stmt.SelectExprs {
+		// fmt.Println(v.(type))
+		switch V := v.(type) {
+		case *sqlparser.StarExpr:
+			star(df)
+		case *sqlparser.AliasedExpr:
+			colExprs = append(colExprs, V.Expr)
+		default:
+			fmt.Println(v)
+			fmt.Println(reflect.TypeOf(v))
 		}
 	}
-	tablewr.Render()
+
+	if len(colExprs) != 0 {
+		for _, v := range colExprs {
+			colNames = append(colNames, strings.ToLower(sqlparser.String(v)))
+		}
+		subTable(df, colNames)
+	}
 
 	return nil
 }
