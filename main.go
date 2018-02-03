@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/olekukonko/tablewriter"
+
 	"github.com/xwb1989/sqlparser"
 
 	"github.com/kniren/gota/dataframe"
 	"github.com/urfave/cli"
 )
 
-func handleSelect(stmt *sqlparser.Select) error {
+func handleSelect(df dataframe.DataFrame, stmt *sqlparser.Select) error {
 	// fmt.Println("SELECT Statement")
 	// fmt.Println(stmt)
 	// fmt.Println("Cache :- ", stmt.Cache)
@@ -32,14 +34,30 @@ func handleSelect(stmt *sqlparser.Select) error {
 	}
 
 	table := sqlparser.String(stmt.From)
-	fmt.Println("Table Name :- ", table)
+	if table != "csv" {
+		fmt.Println("ERROR :- Table Not Found. Use `csv` table")
+		return nil
+	}
+
+	headers := df.Names()
+
+	tablewr := tablewriter.NewWriter(os.Stdout)
+	tablewr.SetHeader(headers)
+	for i, v := range df.Records() {
+		if i != 0 {
+			tablewr.Append(v)
+		}
+	}
+	tablewr.Render()
 
 	return nil
 }
 
 func handleInsert(stmt *sqlparser.Insert) error {
-	table := stmt.Table.Name
-	fmt.Println("Table Name :- ", table)
+	table := sqlparser.String(stmt.Table.Name)
+	if table != "csv" {
+		fmt.Println("ERROR :- Table Not Found. Use `csv` table")
+	}
 
 	return nil
 }
@@ -68,7 +86,7 @@ func fenrir(c *cli.Context) error {
 		}
 		switch stmt := stmt.(type) {
 		case *sqlparser.Select:
-			handleSelect(stmt)
+			handleSelect(df, stmt)
 		case *sqlparser.Insert:
 			handleInsert(stmt)
 		}
